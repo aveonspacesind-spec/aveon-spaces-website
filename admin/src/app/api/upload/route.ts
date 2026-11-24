@@ -1,6 +1,23 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 
+export async function GET() {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    return NextResponse.json(
+      { success: false, error: "Cloudinary credentials missing: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, or CLOUDINARY_API_SECRET." },
+      { status: 500 }
+    );
+  }
+  return NextResponse.json({
+    success: true,
+    message: `Media upload route (/api/upload) is active for cloud '${cloudName}'.`
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();

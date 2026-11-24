@@ -13,6 +13,7 @@ import {
   Star,
   Layers,
   Truck,
+  Activity,
   X
 } from 'lucide-react';
 import { db } from "@/lib/firebase";
@@ -344,16 +345,16 @@ export default function Dashboard() {
             </Link>
 
             <Link
-              href="/products"
+              href="/system-utilities"
               className="flex items-center justify-between p-3.5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/15 hover:bg-white/[0.05] transition-colors group"
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center">
-                  <Layers className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <Activity className="w-4 h-4" />
                 </div>
                 <div className="text-left">
-                  <div className="text-sm font-semibold text-white">Product Inventory</div>
-                  <div className="text-xs text-neutral-400">Edit prices, images & details</div>
+                  <div className="text-sm font-semibold text-white">API Health & Diagnostics</div>
+                  <div className="text-xs text-neutral-400">Test live endpoints & database</div>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-neutral-500 group-hover:text-white transition-colors" />

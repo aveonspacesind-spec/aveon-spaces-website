@@ -1,111 +1,478 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { Database, Shield, Activity, RefreshCw, Cpu, Server, HardDrive } from "lucide-react";
+
+import React, { useState } from "react";
+import { 
+  Server, 
+  Mail, 
+  Upload, 
+  Database, 
+  Image as ImageIcon, 
+  Globe, 
+  Play, 
+  RefreshCw, 
+  CheckCircle2, 
+  XCircle, 
+  Clock, 
+  AlertTriangle,
+  ExternalLink
+} from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, limit, query } from "firebase/firestore";
+
+type EndpointStatus = "idle" | "loading" | "success" | "error";
+
+interface EndpointItem {
+  id: string;
+  name: string;
+  category: "Internal Route" | "External Service" | "Database" | "CDN / Store";
+  method: string;
+  target: string;
+  description: string;
+  icon: any;
+  status: EndpointStatus;
+  latency?: number;
+  statusCode?: number;
+  responseMessage?: string;
+  errorMessage?: string;
+  lastTested?: string;
+}
+
+const INITIAL_ENDPOINTS: EndpointItem[] = [
+  {
+    id: "firestore",
+    name: "Firebase Firestore Database",
+    category: "Database",
+    method: "FIRESTORE SDK",
+    target: "Google Cloud Firestore",
+    description: "Queries the Firestore database to verify live read permissions and database connectivity.",
+    icon: Database,
+    status: "idle",
+  },
+  {
+    id: "send-email-route",
+    name: "Email Dispatch Route",
+    category: "Internal Route",
+    method: "GET",
+    target: "/api/send-email",
+    description: "Tests the server-side email dispatch handler and checks if RESEND_API_KEY is present.",
+    icon: Mail,
+    status: "idle",
+  },
+  {
+    id: "resend-api",
+    name: "Resend Email Service API",
+    category: "External Service",
+    method: "PROBE",
+    target: "api.resend.com",
+    description: "Sends an authenticated probe directly to Resend servers to verify that your API key is valid.",
+    icon: Mail,
+    status: "idle",
+  },
+  {
+    id: "upload-route",
+    name: "Media Upload Route",
+    category: "Internal Route",
+    method: "GET",
+    target: "/api/upload",
+    description: "Checks if the server image upload endpoint is responsive and Cloudinary credentials are configured.",
+    icon: Upload,
+    status: "idle",
+  },
+  {
+    id: "cloudinary-api",
+    name: "Cloudinary Cloud API",
+    category: "External Service",
+    method: "PROBE",
+    target: "api.cloudinary.com",
+    description: "Tests live connection to Cloudinary media servers using Cloud Name, API Key, and Secret.",
+    icon: ImageIcon,
+    status: "idle",
+  },
+  {
+    id: "cloudflare-r2",
+    name: "Cloudflare R2 Asset Storage",
+    category: "CDN / Store",
+    method: "PROBE",
+    target: "Cloudflare R2 Endpoint",
+    description: "Checks if the public Cloudflare R2 bucket URL where store brochures/images are hosted is reachable.",
+    icon: Server,
+    status: "idle",
+  },
+  {
+    id: "frontend-site",
+    name: "Customer Storefront",
+    category: "CDN / Store",
+    method: "PING",
+    target: "Customer Store Website",
+    description: "Pings the customer-facing website domain to ensure the public store is online.",
+    icon: Globe,
+    status: "idle",
+  },
+];
 
 export default function SystemUtilitiesPage() {
-  const [productCount, setProductCount] = useState(0);
-  const [inquiryCount, setInquiryCount] = useState(0);
-  const [articleCount, setArticleCount] = useState(0);
-  const [dbStatus, setDbStatus] = useState("Checking...");
-  const [loading, setLoading] = useState(true);
+  const [endpoints, setEndpoints] = useState<EndpointItem[]>(INITIAL_ENDPOINTS);
+  const [isTestingAll, setIsTestingAll] = useState(false);
 
-  useEffect(() => {
-    // Fetch telemetry metrics to check Firebase health
-    const unsubProducts = onSnapshot(collection(db, "products"), (snapshot) => {
-      setProductCount(snapshot.size);
-      setDbStatus("Connected");
-    }, (err) => {
-      console.error(err);
-      setDbStatus("Error");
+  // Update a single endpoint's state
+  const updateEndpoint = (id: string, updates: Partial<EndpointItem>) => {
+    setEndpoints((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    );
+  };
+
+  // Run a single endpoint test
+  const testEndpoint = async (id: string) => {
+    updateEndpoint(id, {
+      status: "loading",
+      errorMessage: undefined,
+      responseMessage: undefined,
+      latency: undefined,
     });
 
-    const unsubInquiries = onSnapshot(collection(db, "enquiries"), (snapshot) => {
-      setInquiryCount(snapshot.size);
-    });
+    const startTime = performance.now();
+    const timestamp = new Date().toLocaleTimeString();
 
-    const unsubArticles = onSnapshot(collection(db, "articles"), (snapshot) => {
-      setArticleCount(snapshot.size);
-      setLoading(false);
-    });
+    try {
+      if (id === "firestore") {
+        // Test Firestore
+        const q = query(collection(db, "products"), limit(1));
+        const snap = await getDocs(q);
+        const latency = Math.round(performance.now() - startTime);
 
-    return () => {
-      unsubProducts();
-      unsubInquiries();
-      unsubArticles();
-    };
-  }, []);
+        updateEndpoint(id, {
+          status: "success",
+          statusCode: 200,
+          latency,
+          responseMessage: `Firestore query successful (${snap.size} sample document read). Database is connected.`,
+          lastTested: timestamp,
+        });
+      } else if (id === "send-email-route") {
+        // Test /api/send-email
+        const res = await fetch("/api/send-email");
+        const latency = Math.round(performance.now() - startTime);
+        const data = await res.json().catch(() => ({}));
 
-  const systemMetrics = [
-    { name: "Database Service", value: dbStatus, sub: "Google Firestore", icon: Server, status: dbStatus === "Connected" ? "ok" : "warn" },
-    { name: "Storage Utilization", value: "0.85 GB", sub: "10 GB Allotted Limit", icon: HardDrive, status: "ok" },
-    { name: "Active Seating Products", value: productCount.toString(), sub: "Dynamic entries", icon: Cpu, status: "ok" },
-    { name: "Total Customer Enquiries", value: inquiryCount.toString(), sub: "Leads database", icon: Activity, status: "ok" },
-    { name: "Dynamic Blog Articles", value: articleCount.toString(), sub: "CMS insights", icon: Database, status: "ok" },
-    { name: "Admin Cryptography", value: "AES-256", sub: "SSL session secure", icon: Shield, status: "ok" }
-  ];
+        if (!res.ok || data.success === false) {
+          updateEndpoint(id, {
+            status: "error",
+            statusCode: res.status,
+            latency,
+            errorMessage: data.error || `HTTP ${res.status}: Failed to reach route.`,
+            lastTested: timestamp,
+          });
+        } else {
+          updateEndpoint(id, {
+            status: "success",
+            statusCode: res.status,
+            latency,
+            responseMessage: data.message || "Endpoint is working (HTTP 200 OK).",
+            lastTested: timestamp,
+          });
+        }
+      } else if (id === "upload-route") {
+        // Test /api/upload
+        const res = await fetch("/api/upload");
+        const latency = Math.round(performance.now() - startTime);
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || data.success === false) {
+          updateEndpoint(id, {
+            status: "error",
+            statusCode: res.status,
+            latency,
+            errorMessage: data.error || `HTTP ${res.status}: Upload route check failed.`,
+            lastTested: timestamp,
+          });
+        } else {
+          updateEndpoint(id, {
+            status: "success",
+            statusCode: res.status,
+            latency,
+            responseMessage: data.message || "Endpoint is working (HTTP 200 OK).",
+            lastTested: timestamp,
+          });
+        }
+      } else if (id === "resend-api") {
+        // Test Resend via health route
+        const res = await fetch("/api/health?test=resend");
+        const latency = Math.round(performance.now() - startTime);
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || data.success === false) {
+          updateEndpoint(id, {
+            status: "error",
+            statusCode: res.status,
+            latency,
+            errorMessage: data.error || `Resend test returned HTTP ${res.status}. Check RESEND_API_KEY.`,
+            lastTested: timestamp,
+          });
+        } else {
+          updateEndpoint(id, {
+            status: "success",
+            statusCode: 200,
+            latency: data.latency || latency,
+            responseMessage: data.message || "Resend API key is valid and servers responded successfully.",
+            lastTested: timestamp,
+          });
+        }
+      } else if (id === "cloudinary-api") {
+        // Test Cloudinary via health route
+        const res = await fetch("/api/health?test=cloudinary");
+        const latency = Math.round(performance.now() - startTime);
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || data.success === false) {
+          updateEndpoint(id, {
+            status: "error",
+            statusCode: res.status,
+            latency,
+            errorMessage: data.error || `Cloudinary ping returned HTTP ${res.status}. Check API credentials.`,
+            lastTested: timestamp,
+          });
+        } else {
+          updateEndpoint(id, {
+            status: "success",
+            statusCode: 200,
+            latency: data.latency || latency,
+            responseMessage: data.message || "Cloudinary media service is working and credentials are valid.",
+            lastTested: timestamp,
+          });
+        }
+      } else if (id === "cloudflare-r2") {
+        // Test Cloudflare R2
+        const res = await fetch("/api/health?test=r2");
+        const latency = Math.round(performance.now() - startTime);
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || data.success === false) {
+          updateEndpoint(id, {
+            status: "error",
+            statusCode: res.status,
+            latency,
+            errorMessage: data.error || `R2 test failed. Check CLOUDFLARE_R2_PUBLIC_URL.`,
+            lastTested: timestamp,
+          });
+        } else {
+          updateEndpoint(id, {
+            status: "success",
+            statusCode: 200,
+            latency: data.latency || latency,
+            responseMessage: data.message || "Cloudflare R2 CDN is reachable and responsive.",
+            lastTested: timestamp,
+          });
+        }
+      } else if (id === "frontend-site") {
+        // Test Frontend
+        // We ping current origin root or storefront
+        const targetUrl = typeof window !== "undefined" ? window.location.origin : "/";
+        const res = await fetch(targetUrl, { method: "HEAD" });
+        const latency = Math.round(performance.now() - startTime);
+
+        if (!res.ok) {
+          updateEndpoint(id, {
+            status: "error",
+            statusCode: res.status,
+            latency,
+            errorMessage: `Storefront returned HTTP ${res.status}.`,
+            lastTested: timestamp,
+          });
+        } else {
+          updateEndpoint(id, {
+            status: "success",
+            statusCode: res.status,
+            latency,
+            responseMessage: `Storefront is online (HTTP ${res.status} OK).`,
+            lastTested: timestamp,
+          });
+        }
+      }
+    } catch (err: any) {
+      const latency = Math.round(performance.now() - startTime);
+      updateEndpoint(id, {
+        status: "error",
+        latency,
+        errorMessage: err.message || "Network request failed. Service unreachable.",
+        lastTested: timestamp,
+      });
+    }
+  };
+
+  // Test all endpoints sequentially
+  const testAllEndpoints = async () => {
+    setIsTestingAll(true);
+    for (const item of endpoints) {
+      await testEndpoint(item.id);
+    }
+    setIsTestingAll(false);
+  };
+
+  const totalWorking = endpoints.filter((e) => e.status === "success").length;
+  const totalFailed = endpoints.filter((e) => e.status === "error").length;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
-          <h1 className="text-4xl font-black font-outfit text-white tracking-tighter uppercase">
-            System <span className="text-brand-accent">Utilities</span>
-          </h1>
-          <p className="text-white/40 font-bold text-[10px] uppercase tracking-widest mt-2">
-            Real-time cloud database status, telemetry logs, and microservice infrastructure diagnostics
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">API Health & System Utilities</h1>
+          <p className="text-sm text-neutral-400 mt-1">
+            Send real-time test requests to each API endpoint. If an endpoint is working, it will show as operational; if not, it will display the error.
           </p>
+        </div>
+        <div>
+          <button
+            onClick={testAllEndpoints}
+            disabled={isTestingAll}
+            className="px-5 py-2.5 bg-brand-accent hover:bg-brand-accent/90 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${isTestingAll ? "animate-spin" : ""}`} />
+            {isTestingAll ? "Testing all endpoints..." : "Test All Endpoints"}
+          </button>
         </div>
       </div>
 
-      <div className="bg-white/5 p-8 md:p-12 rounded-[2.5rem] border border-white/5 shadow-sm space-y-8">
-        <div className="flex items-center justify-between border-b border-white/5 pb-4">
-          <h3 className="text-lg font-black font-outfit text-white uppercase tracking-tight flex items-center gap-3">
-            <Activity className="w-5 h-5 text-brand-accent" /> Infrastructure Health & Diagnostic Report
-          </h3>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping" />
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Diagnostics Live</span>
+      {/* Summary Stats Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-neutral-400 font-medium">Total Endpoints</div>
+            <div className="text-2xl font-bold text-white mt-0.5">{endpoints.length}</div>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+            <Server className="w-5 h-5" />
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-accent"></div>
-            <span className="text-white/40 text-xs tracking-widest uppercase font-bold">Synchronizing telemetry...</span>
+        <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-neutral-400 font-medium">Working & Active</div>
+            <div className="text-2xl font-bold text-emerald-400 mt-0.5">{totalWorking}</div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {systemMetrics.map((metric, i) => (
-              <div 
-                key={i} 
-                className="bg-white/5 border border-white/5 p-6 rounded-2xl flex items-start justify-between hover:border-white/10 transition-all group"
-              >
-                <div className="space-y-2 min-w-0">
-                  <span className="text-[10px] font-black text-white/40 uppercase tracking-widest block">{metric.name}</span>
-                  <h4 className="text-2xl font-black font-outfit text-white leading-tight">{metric.value}</h4>
-                  <p className="text-[9px] font-bold text-white/20 uppercase tracking-wider">{metric.sub}</p>
-                </div>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  metric.status === "ok" ? "bg-white/5 text-white/40 group-hover:bg-brand-accent/10 group-hover:text-brand-accent" : "bg-amber-950/30 text-amber-500 border border-amber-500/20"
-                } transition-all`}>
-                  <metric.icon className="w-5 h-5" />
-                </div>
-              </div>
-            ))}
+          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
-        )}
+        </div>
 
-        <div className="p-6 bg-brand-accent/5 border border-brand-accent/10 rounded-2xl flex items-start gap-4">
-          <Shield className="w-6 h-6 text-brand-accent flex-shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h4 className="text-xs font-black text-white uppercase tracking-wider">Secure Administrative Environment</h4>
-            <p className="text-[10px] text-white/40 leading-relaxed">
-              All database connections are established over encrypted secure channels. Direct manipulation tools, bulk seeders, and destructive clearing APIs have been fully deprecated and removed to enforce enterprise production safety guidelines.
-            </p>
+        <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-neutral-400 font-medium">Errors Detected</div>
+            <div className="text-2xl font-bold text-red-400 mt-0.5">{totalFailed}</div>
           </div>
+          <div className="w-9 h-9 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Endpoints List */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-white">Configured Services and Endpoints</h2>
+
+        <div className="space-y-3">
+          {endpoints.map((ep) => {
+            const isBusy = ep.status === "loading";
+            const isOk = ep.status === "success";
+            const isErr = ep.status === "error";
+
+            return (
+              <div
+                key={ep.id}
+                className="p-5 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-white/15 transition-all space-y-4"
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  {/* Endpoint Details */}
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300 shrink-0 mt-0.5">
+                      <ep.icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="text-base font-semibold text-white">{ep.name}</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-neutral-300 font-mono font-medium">
+                          {ep.method}
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-white/5 text-neutral-400">
+                          {ep.target}
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-400 mt-1 max-w-2xl">{ep.description}</p>
+                    </div>
+                  </div>
+
+                  {/* Actions & Status Pill */}
+                  <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+                    {/* Status Display */}
+                    {isOk && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Working ({ep.latency}ms)
+                      </span>
+                    )}
+
+                    {isErr && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 border border-red-500/20 text-red-400">
+                        <XCircle className="w-3.5 h-3.5" />
+                        Failed {ep.statusCode ? `(${ep.statusCode})` : ""}
+                      </span>
+                    )}
+
+                    {isBusy && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Testing...
+                      </span>
+                    )}
+
+                    {ep.status === "idle" && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 text-neutral-400">
+                        <Clock className="w-3.5 h-3.5" />
+                        Not tested
+                      </span>
+                    )}
+
+                    {/* Test Button */}
+                    <button
+                      onClick={() => testEndpoint(ep.id)}
+                      disabled={isBusy || isTestingAll}
+                      className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-colors border border-white/10 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                      Test Endpoint
+                    </button>
+                  </div>
+                </div>
+
+                {/* Response / Error Detail Box */}
+                {(ep.responseMessage || ep.errorMessage) && (
+                  <div
+                    className={`p-3.5 rounded-xl border text-xs font-mono leading-relaxed ${
+                      isOk
+                        ? "bg-emerald-950/20 border-emerald-500/20 text-emerald-300"
+                        : "bg-red-950/20 border-red-500/20 text-red-300"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      {isOk ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 overflow-x-auto">
+                        <span className="font-bold">{isOk ? "Success: " : "Error: "}</span>
+                        {isOk ? ep.responseMessage : ep.errorMessage}
+                        {ep.lastTested && (
+                          <span className="block text-[11px] text-neutral-400 mt-1 font-sans">
+                            Checked at {ep.lastTested} (Latency: {ep.latency}ms)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
