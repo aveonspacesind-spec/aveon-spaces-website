@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Previewer</title>
+<style>
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #000; margin: 0; padding: 0; color: #ffffff; }
+  
+  /* Controls UI */
+  .controls-bar {
+    background-color: #111;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding: 15px 20px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .controls-bar button {
+    background: #222;
+    color: #fff;
+    border: 1px solid #333;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+  .controls-bar button:hover {
+    background: #333;
+  }
+  .controls-bar button.active {
+    background: #1E3A8A;
+    border-color: #1E3A8A;
+  }
+
+  /* Email Wrapper */
+  #email-render-target {
+    padding: 40px 20px;
+  }
+
+  /* Email Styles (Matches your route.ts) */
+  .email-body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #050505; margin: 0; padding: 40px 20px; color: #ffffff; }
+  .email-container { max-width: 600px; margin: 0 auto; background-color: #111111; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.05); }
+  .email-header { background-color: #0A0A0A; padding: 30px 40px; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+  .email-header h1 { color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; text-transform: none; letter-spacing: normal; }
+  .email-content { padding: 40px; color: #d1d5db; font-size: 16px; line-height: 1.6; }
+  .email-title { color: #ffffff; font-size: 22px; font-weight: 600; margin-top: 0; margin-bottom: 20px; }
+  .email-order-details { background-color: #0A0A0A; border-radius: 8px; padding: 20px; margin: 30px 0; border: 1px solid rgba(255, 255, 255, 0.05); }
+  .email-order-details p { margin: 8px 0; font-size: 15px; color: #9ca3af; }
+  .email-order-details strong { color: #ffffff; }
+  .email-status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 14px; font-weight: 600; margin-bottom: 20px; }
+  .email-btn-wrapper { text-align: center; margin-top: 35px; margin-bottom: 15px; }
+  .email-btn { display: inline-block; background-color: #1E3A8A; color: #ffffff !important; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 16px; transition: background-color 0.2s; }
+  .email-footer { background-color: #0A0A0A; padding: 30px 40px; text-align: center; border-top: 1px solid rgba(255, 255, 255, 0.05); }
+  .email-footer p { color: #888888; font-size: 14px; margin: 5px 0; }
+  .email-footer a { color: #10B981; text-decoration: none; font-weight: 500; }
+</style>
+</head>
+<body>
+
+  <!-- Control Bar for Testing -->
+  <div class="controls-bar">
+    <button onclick="renderEmail('pending')" id="btn-pending">Pending</button>
+    <button onclick="renderEmail('confirmed')" id="btn-confirmed" class="active">Confirmed</button>
+    <button onclick="renderEmail('in_progress')" id="btn-in_progress">In Progress</button>
+    <button onclick="renderEmail('in_transit')" id="btn-in_transit">In Transit</button>
+    <button onclick="renderEmail('completed')" id="btn-completed">Completed</button>
+    <button onclick="renderEmail('cancelled')" id="btn-cancelled">Cancelled</button>
+  </div>
+
+  <!-- Render Target -->
+  <div id="email-render-target" class="email-body"></div>
+
+  <script>
+    // Mock Data
+    const customerName = "Alice Johnson";
+    const orderId = "ORD-2026-X8Y9";
+    const orderDate = "7/22/2026, 11:45:00 AM";
+    const orderTotal = "1,249.99";
+
+    const baseTemplate = (title, bodyText, actionUrl, actionText, badgeText, badgeColor, badgeBgColor) => `
+      <div class="email-container">
+        <div class="email-header">
+          <h1>Aveon Spaces</h1>
+        </div>
+        <div class="email-content">
+          <div class="email-status-badge" style="background-color: ${badgeBgColor}; color: ${badgeColor};">${badgeText}</div>
+          <h2 class="email-title">${title}</h2>
+          <p>Hi <strong>${customerName}</strong>,</p>
+          ${bodyText}
+          
+          <div class="email-order-details">
+            <p><strong>Order ID:</strong> ${orderId}</p>
+            <p><strong>Date Placed:</strong> ${orderDate}</p>
+            <p><strong>Total Amount:</strong> $${orderTotal}</p>
+          </div>
+
+          <div class="email-btn-wrapper">
+            <a href="${actionUrl}" class="email-btn">${actionText}</a>
+          </div>
+        </div>
+        <div class="email-footer">
+          <p>Need help? Contact us at <a href="mailto:support@aveonspaces.com" style="color: #10B981; text-decoration: none;">support@aveonspaces.com</a></p>
+          <p>&copy; ${new Date().getFullYear()} Aveon Spaces. All rights reserved.</p>
+        </div>
+      </div>
+    `;
+
+    const statuses = {
+      pending: baseTemplate(
+        "Action Required: Order Pending",
+        "<p>We have safely received your order! It is currently pending payment confirmation.</p><p>Please ensure your 100% advance payment is completed by contacting our finance team at <strong>1234567890</strong>.</p>",
+        "#", "Track Order Status", "Pending Payment", "#F59E0B", "rgba(245, 158, 11, 0.1)"
+      ),
+      confirmed: baseTemplate(
+        "Payment Confirmed!",
+        "<p>Great news! We have successfully confirmed your payment.</p><p>Your order is now officially confirmed and will be moved to production shortly. We will keep you updated every step of the way.</p>",
+        "#", "Track Your Order", "Payment Confirmed", "#10B981", "rgba(16, 185, 129, 0.1)"
+      ),
+      in_progress: baseTemplate(
+        "Order In Progress",
+        "<p>Your order is now in progress! Our expert team is currently preparing and assembling your Aveon Spaces items.</p><p>We will notify you as soon as it is ready for dispatch.</p>",
+        "#", "Track Your Order", "In Progress", "#3B82F6", "rgba(59, 130, 246, 0.1)"
+      ),
+      in_transit: baseTemplate(
+        "Order Dispatched",
+        "<p>Exciting news! Your order has been dispatched and is currently <strong>In Transit</strong>.</p><p>It is on its way to you right now. Get ready to transform your space!</p>",
+        "#", "Track Your Delivery", "In Transit", "#8B5CF6", "rgba(139, 92, 246, 0.1)"
+      ),
+      completed: baseTemplate(
+        "Order Delivered",
+        "<p>Your order has been successfully delivered and marked as Completed! We hope you absolutely love your new Aveon Spaces seating.</p><p>Thank you so much for shopping with us.</p>",
+        "#", "Shop More Aveon Spaces", "Completed", "#10B981", "rgba(16, 185, 129, 0.1)"
+      ),
+      cancelled: baseTemplate(
+        "Order Cancelled",
+        "<p>Your order has been cancelled.</p><p>If you believe this is an error or have any questions regarding your refund or cancellation, please contact our support team immediately.</p>",
+        "#", "Return to Shop", "Cancelled", "#EF4444", "rgba(239, 68, 68, 0.1)"
+      )
+    };
+
+    function renderEmail(status) {
+      document.querySelectorAll('.controls-bar button').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('btn-' + status).classList.add('active');
+      document.getElementById('email-render-target').innerHTML = statuses[status];
+    }
+
+    // Initial render
+    renderEmail('confirmed');
+  </script>
+</body>
+</html>
