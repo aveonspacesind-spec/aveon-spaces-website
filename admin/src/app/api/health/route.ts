@@ -28,6 +28,21 @@ export async function GET(request: Request) {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        
+        // If Resend returns "This API key is restricted to only send emails",
+        // that confirms the key is 100% valid and authenticated with Email Sending permissions!
+        if (
+          errData.message && 
+          (errData.message.includes("restricted to only send emails") || errData.message.includes("restricted"))
+        ) {
+          return NextResponse.json({
+            success: true,
+            status: 200,
+            latency,
+            message: "Resend API key is verified & operational (Permission: Email Sending).",
+          });
+        }
+
         return NextResponse.json(
           {
             success: false,
