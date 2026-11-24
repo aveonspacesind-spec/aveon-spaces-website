@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
 
-const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID || "20ace126656da7cdfff247412eb326e3";
-const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "2571b2ab65de33c41eec301fb559b21d";
-const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "15c2b6c26a9027207add692b81b7927358623dc7de98e8e74a26f839157b0ba3";
-const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || "aveon-spaces-website";
-const publicUrl = (process.env.CLOUDFLARE_R2_PUBLIC_URL || "https://pub-a08a00d306ec4358bc32a948ca484d65.r2.dev").replace(/\/+$/, "");
-const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT || `https://${accountId}.r2.cloudflarestorage.com`;
+const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID || "";
+const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || "";
+const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || "";
+const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || "";
+const publicUrl = (process.env.CLOUDFLARE_R2_PUBLIC_URL || "").replace(/\/+$/, "");
+const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
 
 const s3Client = new S3Client({
   region: "auto",
