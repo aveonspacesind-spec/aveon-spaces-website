@@ -359,68 +359,61 @@ function OrdersAdminContent() {
   );
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8 max-w-7xl mx-auto">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
-          <h1 className="text-4xl font-black font-outfit text-white tracking-tighter uppercase">
-            {view === "contact" ? (
-              <>Client <span className="text-brand-accent">Inquiries</span></>
-            ) : (
-              <>Client <span className="text-brand-accent">Orders & Quotes</span></>
-            )}
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">
+            {view === "contact" ? "Customer Messages" : "Orders & Quotes"}
           </h1>
-          <p className="text-white/40 font-bold text-[10px] uppercase tracking-widest mt-2">
+          <p className="text-sm text-neutral-400 mt-1">
             {view === "contact" 
-              ? "Manage customer inquiries and contact messages" 
-              : "Manage orders, quotes & track lifecycle fulfilment status"}
+              ? "Read and respond to inquiries from the contact form." 
+              : "Review orders, update fulfillment status, and print shipping labels."}
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="px-6 py-4 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-4">
-            <div className="flex flex-col items-end">
-              <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">
-                Total Submissions
-              </span>
-              <span className="text-xs font-bold text-white">{orders.length} Entries</span>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-brand-accent/10 flex items-center justify-center text-brand-accent">
-              <ShoppingBag className="w-5 h-5" />
+        <div className="flex items-center gap-3">
+          <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl flex items-center gap-3">
+            <span className="text-sm font-medium text-neutral-300">
+              {orders.length} {view === "contact" ? "Messages" : "Orders"}
+            </span>
+            <div className="w-8 h-8 rounded-lg bg-brand-accent/15 flex items-center justify-center text-brand-accent">
+              <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
         </div>
       </div>
 
       {/* FILTER BAR */}
-      <div className="bg-white/5 p-6 rounded-[2rem] border border-white/5 space-y-4">
+      <div className="bg-white/[0.03] p-5 rounded-2xl border border-white/10 space-y-4">
         {/* Search & Type Filter Row */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="relative max-w-md w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
             <input
               type="text"
               placeholder="Search by name, email, company or ref..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/5 rounded-2xl text-white text-xs focus:outline-none focus:border-brand-accent transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-brand-accent transition-all placeholder:text-neutral-500"
             />
           </div>
 
           {view !== "contact" && (
-            <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-xl border border-white/5 w-fit">
+            <div className="flex items-center gap-1.5 bg-neutral-900 p-1 rounded-xl border border-white/10 w-fit">
               {[
                 { id: "All", label: "All Types" },
-                { id: "Order", label: "Orders Only" },
-                { id: "Quote", label: "Quotes Only" },
-                { id: "Bulk Order", label: "Bulk Orders" },
+                { id: "Order", label: "Orders" },
+                { id: "Quote", label: "Quotes" },
+                { id: "Bulk Order", label: "Bulk" },
               ].map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setTypeFilter(t.id as any)}
-                  className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     typeFilter === t.id
-                      ? "bg-brand-accent text-white"
-                      : "text-white/40 hover:text-white"
+                      ? "bg-brand-accent text-white shadow-sm"
+                      : "text-neutral-400 hover:text-white"
                   }`}
                 >
                   {t.label}
@@ -431,7 +424,7 @@ function OrdersAdminContent() {
         </div>
 
         {/* Status filter tabs */}
-        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
           {FILTER_TABS.map((f) => {
             const isActive = filter === f;
             const count = counts[f] || 0;
@@ -445,10 +438,10 @@ function OrdersAdminContent() {
                   else newParams.set("filter", f);
                   router.push(`${pathname}?${newParams.toString()}`);
                 }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                   isActive
-                    ? "bg-brand-accent text-white border-brand-accent shadow-lg shadow-brand-accent/20"
-                    : "bg-white/5 text-white/40 border-transparent hover:text-white"
+                    ? "bg-brand-accent text-white border-brand-accent shadow-sm"
+                    : "bg-white/5 text-neutral-400 border-transparent hover:text-white hover:bg-white/10"
                 }`}
               >
                 {f}

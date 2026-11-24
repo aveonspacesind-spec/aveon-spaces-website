@@ -191,39 +191,41 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8 max-w-7xl mx-auto">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
-          <h1 className="text-4xl font-black font-outfit text-white tracking-tighter uppercase">
-            Product <span className="text-brand-accent">Inventory</span>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">
+            Products & Catalog
           </h1>
-          <p className="text-white/40 font-bold text-[10px] uppercase tracking-widest mt-2">
-            Manage the product catalog and featured items
+          <p className="text-sm text-neutral-400 mt-1">
+            Manage your chairs, seating catalog, prices, and featured items.
           </p>
         </div>
         <button 
           onClick={() => router.push('/products/new')}
-          className="px-8 py-4 bg-brand-accent text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 hover:scale-105 transition-all shadow-xl shadow-brand-accent/20"
+          className="px-5 py-2.5 bg-brand-accent hover:bg-brand-accent/90 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
         >
           <Plus className="w-4 h-4" /> Add New Product
         </button>
       </div>
 
       {/* GLOBAL BROCHURE CMS */}
-      <div className="bg-white/5 border border-white/5 rounded-3xl p-8 space-y-6">
+      <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-xl font-bold text-white uppercase tracking-tight flex items-center gap-2">
-              <FileText className="w-5 h-5 text-brand-accent" /> Global Product Brochure <span className="text-xs font-bold text-white/40 uppercase tracking-widest px-2.5 py-1 bg-white/5 border border-white/5 rounded-full ml-2">CMS</span>
+            <h3 className="text-base font-semibold text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-brand-accent" /> Store Brochure (PDF)
             </h3>
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mt-1">This single PDF is shared as the download link across all product pages. Upload once, applies everywhere.</p>
+            <p className="text-xs text-neutral-400 mt-0.5">
+              This PDF is downloaded when visitors click "Download Brochure" on any product page.
+            </p>
           </div>
           {globalBrochure && (
             <button
               type="button"
               onClick={handleRemoveGlobalBrochure}
-              className="text-[10px] font-bold text-red-400 hover:text-red-300 uppercase tracking-widest border border-red-500/20 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-colors"
+              className="text-xs font-medium text-red-400 hover:text-red-300 border border-red-500/20 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
             >
               Remove PDF
             </button>

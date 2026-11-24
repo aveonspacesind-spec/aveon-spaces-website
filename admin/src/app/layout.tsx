@@ -25,21 +25,21 @@ export default function RootLayout({
           <div className="sticky top-0 h-screen shrink-0 z-50">
             <Sidebar />
           </div>
-          <main className="flex-1 w-full min-w-0 p-8">
+          <main className="flex-1 w-full min-w-0 p-6 md:p-8 overflow-x-hidden">
             {children}
           </main>
           <Toaster 
             position="bottom-right"
             toastOptions={{
               style: {
-                background: '#111',
+                background: '#181818',
                 color: '#fff',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '16px',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                textTransform: 'uppercase',
-                letterSpacing: '1px'
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '12px',
+                fontSize: '14px',
+                fontWeight: '500',
+                padding: '12px 16px',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)'
               },
               success: {
                 iconTheme: {
