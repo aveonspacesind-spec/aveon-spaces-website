@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -46,55 +47,52 @@ export async function GET(request: Request) {
       });
     }
 
-    // 2. Test Cloudinary External API
-    if (test === "cloudinary") {
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-      const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
-      const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    // 2. Test Cloudflare R2 Storage (Direct S3-compatible API ping)
+    if (test === "r2" || test === "r2-storage") {
+      const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
+      const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+      const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+      const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME;
+      const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
 
-      if (!cloudName || !apiKey || !apiSecret) {
+      if (!accessKeyId || !secretAccessKey || !endpoint || !bucketName) {
         return NextResponse.json(
           {
             success: false,
-            error: "Cloudinary credentials missing: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, or CLOUDINARY_API_SECRET not set.",
+            error: "Cloudflare R2 credentials missing: CLOUDFLARE_R2_ACCOUNT_ID, ACCESS_KEY_ID, SECRET_ACCESS_KEY, or BUCKET_NAME not set.",
           },
           { status: 500 }
         );
       }
 
-      // Ping Cloudinary ping endpoint with Basic auth
-      const authHeader = `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString("base64")}`;
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/ping`, {
-        headers: {
-          Authorization: authHeader,
+      const s3Client = new S3Client({
+        region: "auto",
+        endpoint,
+        credentials: {
+          accessKeyId,
+          secretAccessKey,
         },
       });
 
-      const latency = Date.now() - startTime;
+      // Test listing with max 1 object to verify bucket read permission
+      const command = new ListObjectsV2Command({
+        Bucket: bucketName,
+        MaxKeys: 1,
+      });
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        return NextResponse.json(
-          {
-            success: false,
-            status: res.status,
-            latency,
-            error: errText || `Cloudinary ping returned HTTP ${res.status}`,
-          },
-          { status: res.status }
-        );
-      }
+      await s3Client.send(command);
+      const latency = Date.now() - startTime;
 
       return NextResponse.json({
         success: true,
         status: 200,
         latency,
-        message: `Cloudinary media service is operational for cloud '${cloudName}'.`,
+        message: `Cloudflare R2 bucket '${bucketName}' is connected and responding via S3 API.`,
       });
     }
 
-    // 3. Test Cloudflare R2 (Public URL availability)
-    if (test === "r2") {
+    // 3. Test Cloudflare R2 Public CDN URL
+    if (test === "r2-public") {
       const publicUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL;
       if (!publicUrl) {
         return NextResponse.json(
@@ -108,7 +106,7 @@ export async function GET(request: Request) {
 
       if (!res) {
         return NextResponse.json(
-          { success: false, latency, error: `Could not reach Cloudflare R2 URL: ${publicUrl}` },
+          { success: false, latency, error: `Could not reach Cloudflare R2 public URL: ${publicUrl}` },
           { status: 502 }
         );
       }
@@ -117,13 +115,13 @@ export async function GET(request: Request) {
         success: true,
         status: res.status,
         latency,
-        message: `Cloudflare R2 CDN is reachable (${publicUrl}).`,
+        message: `Cloudflare R2 public CDN is reachable (${publicUrl}).`,
       });
     }
 
     return NextResponse.json({
       success: true,
-      message: "Health check route is online. Pass ?test=resend | cloudinary | r2 to test specific services.",
+      message: "Health check route is online. Pass ?test=resend | r2 | r2-public to test specific services.",
     });
   } catch (error: any) {
     const latency = Date.now() - startTime;

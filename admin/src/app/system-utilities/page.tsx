@@ -6,7 +6,6 @@ import {
   Mail, 
   Upload, 
   Database, 
-  Image as ImageIcon, 
   Globe, 
   Play, 
   RefreshCw, 
@@ -14,7 +13,7 @@ import {
   XCircle, 
   Clock, 
   AlertTriangle,
-  ExternalLink
+  HardDrive
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, limit, query } from "firebase/firestore";
@@ -42,7 +41,7 @@ const INITIAL_ENDPOINTS: EndpointItem[] = [
     id: "firestore",
     name: "Firebase Firestore Database",
     category: "Database",
-    method: "FIRESTORE SDK",
+    method: "SDK QUERY",
     target: "Google Cloud Firestore",
     description: "Queries the Firestore database to verify live read permissions and database connectivity.",
     icon: Database,
@@ -70,31 +69,31 @@ const INITIAL_ENDPOINTS: EndpointItem[] = [
   },
   {
     id: "upload-route",
-    name: "Media Upload Route",
+    name: "Cloudflare R2 Upload Route",
     category: "Internal Route",
     method: "GET",
     target: "/api/upload",
-    description: "Checks if the server image upload endpoint is responsive and Cloudinary credentials are configured.",
+    description: "Tests the image upload route and verifies Cloudflare R2 bucket credentials on the server.",
     icon: Upload,
     status: "idle",
   },
   {
-    id: "cloudinary-api",
-    name: "Cloudinary Cloud API",
+    id: "r2-storage",
+    name: "Cloudflare R2 Bucket & S3 API",
     category: "External Service",
-    method: "PROBE",
-    target: "api.cloudinary.com",
-    description: "Tests live connection to Cloudinary media servers using Cloud Name, API Key, and Secret.",
-    icon: ImageIcon,
+    method: "S3 API PROBE",
+    target: "r2.cloudflarestorage.com",
+    description: "Tests live bucket connectivity, credentials, and read access via Cloudflare R2 S3 API.",
+    icon: HardDrive,
     status: "idle",
   },
   {
-    id: "cloudflare-r2",
-    name: "Cloudflare R2 Asset Storage",
+    id: "r2-public",
+    name: "Cloudflare R2 Public CDN",
     category: "CDN / Store",
     method: "PROBE",
-    target: "Cloudflare R2 Endpoint",
-    description: "Checks if the public Cloudflare R2 bucket URL where store brochures/images are hosted is reachable.",
+    target: "R2 Public URL",
+    description: "Checks if the public Cloudflare R2 CDN where product images & brochures are served is reachable.",
     icon: Server,
     status: "idle",
   },
@@ -104,7 +103,7 @@ const INITIAL_ENDPOINTS: EndpointItem[] = [
     category: "CDN / Store",
     method: "PING",
     target: "Customer Store Website",
-    description: "Pings the customer-facing website domain to ensure the public store is online.",
+    description: "Pings the website domain to ensure the public store is online and reachable.",
     icon: Globe,
     status: "idle",
   },
@@ -144,7 +143,7 @@ export default function SystemUtilitiesPage() {
           status: "success",
           statusCode: 200,
           latency,
-          responseMessage: `Firestore query successful (${snap.size} sample document read). Database is connected.`,
+          responseMessage: `Firestore query successful (${snap.size} sample document read). Database is operational.`,
           lastTested: timestamp,
         });
       } else if (id === "send-email-route") {
@@ -158,7 +157,7 @@ export default function SystemUtilitiesPage() {
             status: "error",
             statusCode: res.status,
             latency,
-            errorMessage: data.error || `HTTP ${res.status}: Failed to reach route.`,
+            errorMessage: data.error || `HTTP ${res.status}: Failed to reach email route.`,
             lastTested: timestamp,
           });
         } else {
@@ -216,9 +215,9 @@ export default function SystemUtilitiesPage() {
             lastTested: timestamp,
           });
         }
-      } else if (id === "cloudinary-api") {
-        // Test Cloudinary via health route
-        const res = await fetch("/api/health?test=cloudinary");
+      } else if (id === "r2-storage") {
+        // Test Cloudflare R2 bucket connection
+        const res = await fetch("/api/health?test=r2-storage");
         const latency = Math.round(performance.now() - startTime);
         const data = await res.json().catch(() => ({}));
 
@@ -227,7 +226,7 @@ export default function SystemUtilitiesPage() {
             status: "error",
             statusCode: res.status,
             latency,
-            errorMessage: data.error || `Cloudinary ping returned HTTP ${res.status}. Check API credentials.`,
+            errorMessage: data.error || `R2 storage test returned HTTP ${res.status}. Check R2 credentials.`,
             lastTested: timestamp,
           });
         } else {
@@ -235,13 +234,13 @@ export default function SystemUtilitiesPage() {
             status: "success",
             statusCode: 200,
             latency: data.latency || latency,
-            responseMessage: data.message || "Cloudinary media service is working and credentials are valid.",
+            responseMessage: data.message || "Cloudflare R2 bucket is connected and operational.",
             lastTested: timestamp,
           });
         }
-      } else if (id === "cloudflare-r2") {
-        // Test Cloudflare R2
-        const res = await fetch("/api/health?test=r2");
+      } else if (id === "r2-public") {
+        // Test Cloudflare R2 Public CDN
+        const res = await fetch("/api/health?test=r2-public");
         const latency = Math.round(performance.now() - startTime);
         const data = await res.json().catch(() => ({}));
 
@@ -250,7 +249,7 @@ export default function SystemUtilitiesPage() {
             status: "error",
             statusCode: res.status,
             latency,
-            errorMessage: data.error || `R2 test failed. Check CLOUDFLARE_R2_PUBLIC_URL.`,
+            errorMessage: data.error || `R2 public CDN test failed. Check CLOUDFLARE_R2_PUBLIC_URL.`,
             lastTested: timestamp,
           });
         } else {
@@ -263,8 +262,7 @@ export default function SystemUtilitiesPage() {
           });
         }
       } else if (id === "frontend-site") {
-        // Test Frontend
-        // We ping current origin root or storefront
+        // Test Storefront
         const targetUrl = typeof window !== "undefined" ? window.location.origin : "/";
         const res = await fetch(targetUrl, { method: "HEAD" });
         const latency = Math.round(performance.now() - startTime);
