@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -8,7 +8,9 @@ export async function GET(request: Request) {
   const startTime = Date.now();
 
   try {
-    // 1. Test Resend External API
+    // ─────────────────────────────────────────────────────────────
+    // 1. Resend API Authentication & Send Permissions
+    // ─────────────────────────────────────────────────────────────
     if (test === "resend") {
       const apiKey = process.env.RESEND_API_KEY;
       if (!apiKey) {
@@ -29,8 +31,8 @@ export async function GET(request: Request) {
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         
-        // If Resend returns "This API key is restricted to only send emails",
-        // that confirms the key is 100% valid and authenticated with Email Sending permissions!
+        // If Resend returns 403 with "restricted to only send emails",
+        // that confirms the key is authentic and active for email sending!
         if (
           errData.message && 
           (errData.message.includes("restricted to only send emails") || errData.message.includes("restricted"))
@@ -39,7 +41,7 @@ export async function GET(request: Request) {
             success: true,
             status: 200,
             latency,
-            message: "Resend API key is verified & operational (Permission: Email Sending).",
+            message: "Resend API key is verified and operational with active Email-Sending permissions.",
           });
         }
 
@@ -62,8 +64,10 @@ export async function GET(request: Request) {
       });
     }
 
-    // 2. Test Cloudflare R2 Storage (Direct S3-compatible API ping)
-    if (test === "r2" || test === "r2-storage") {
+    // ─────────────────────────────────────────────────────────────
+    // 2. Cloudflare R2 - Read / Bucket Connection (ListObjects)
+    // ─────────────────────────────────────────────────────────────
+    if (test === "r2-read") {
       const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
       const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
       const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
@@ -89,24 +93,82 @@ export async function GET(request: Request) {
         },
       });
 
-      // Test listing with max 1 object to verify bucket read permission
       const command = new ListObjectsV2Command({
         Bucket: bucketName,
-        MaxKeys: 1,
+        MaxKeys: 2,
       });
 
-      await s3Client.send(command);
+      const output = await s3Client.send(command);
       const latency = Date.now() - startTime;
 
       return NextResponse.json({
         success: true,
         status: 200,
         latency,
-        message: `Cloudflare R2 bucket '${bucketName}' is connected and responding via S3 API.`,
+        message: `Cloudflare R2 bucket '${bucketName}' read query successful. Total key sample count: ${output.KeyCount ?? 0}.`,
       });
     }
 
-    // 3. Test Cloudflare R2 Public CDN URL
+    // ─────────────────────────────────────────────────────────────
+    // 3. Cloudflare R2 - Write & Delete Operation (PutObject + DeleteObject)
+    // ─────────────────────────────────────────────────────────────
+    if (test === "r2-write") {
+      const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
+      const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+      const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+      const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME;
+      const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
+
+      if (!accessKeyId || !secretAccessKey || !endpoint || !bucketName) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Cloudflare R2 credentials missing: CLOUDFLARE_R2_ACCOUNT_ID, ACCESS_KEY_ID, SECRET_ACCESS_KEY, or BUCKET_NAME not set.",
+          },
+          { status: 500 }
+        );
+      }
+
+      const s3Client = new S3Client({
+        region: "auto",
+        endpoint,
+        credentials: {
+          accessKeyId,
+          secretAccessKey,
+        },
+      });
+
+      const testKey = `uploads/.health-probe-${Date.now()}.tmp`;
+
+      // 1. Put temporary test object
+      const putCommand = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: testKey,
+        Body: Buffer.from("probe"),
+        ContentType: "text/plain",
+      });
+      await s3Client.send(putCommand);
+
+      // 2. Immediately delete test object (leaving zero junk files behind)
+      const delCommand = new DeleteObjectCommand({
+        Bucket: bucketName,
+        Key: testKey,
+      });
+      await s3Client.send(delCommand);
+
+      const latency = Date.now() - startTime;
+
+      return NextResponse.json({
+        success: true,
+        status: 200,
+        latency,
+        message: `R2 write and delete operations completed successfully in bucket '${bucketName}'. Full write permissions verified.`,
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 4. Cloudflare R2 - Public CDN Asset Delivery (HEAD public URL)
+    // ─────────────────────────────────────────────────────────────
     if (test === "r2-public") {
       const publicUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL;
       if (!publicUrl) {
@@ -136,7 +198,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Health check route is online. Pass ?test=resend | r2 | r2-public to test specific services.",
+      message: "Health check route is online. Pass ?test=resend | r2-read | r2-write | r2-public to test specific operations.",
     });
   } catch (error: any) {
     const latency = Date.now() - startTime;

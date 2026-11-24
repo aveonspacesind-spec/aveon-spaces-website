@@ -101,5 +101,12 @@ service cloud.firestore {
       allow read, delete: if true;
     }
 
+    // ==========================================
+    // 6. SYSTEM HEALTH CHECKS
+    // ==========================================
+    match /health_checks/{checkId} {
+      allow read, write, delete: if true;
+    }
+
   }
 }
